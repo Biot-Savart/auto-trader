@@ -15,7 +15,7 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe());
 
   const config = new DocumentBuilder()
-    .setTitle('My API')
+    .setTitle('Forex Trader API')
     .setDescription('The API description')
     .setVersion('1.0')
     .addBearerAuth() // optional, if you use JWT auth
