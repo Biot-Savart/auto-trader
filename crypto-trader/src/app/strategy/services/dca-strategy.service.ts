@@ -1,3 +1,6 @@
+import { Trade } from '@forex-trader/data-access';
+import { InjectRepository } from '@mikro-orm/nestjs';
+import { EntityManager, EntityRepository } from '@mikro-orm/postgresql';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { BinanceService } from '../../exchange/services/binance.service';
@@ -13,7 +16,12 @@ export class DcaStrategyService {
   private lastTradeTimestamp = 0;
   private cooldownMs = 60 * 1000; // 1 minute cooldown
 
-  constructor(private readonly binanceService: BinanceService) {
+  constructor(
+    private readonly binanceService: BinanceService,
+    @InjectRepository(Trade)
+    private readonly tradeRepo: EntityRepository<Trade>,
+    private readonly em: EntityManager
+  ) {
     this.logger.log('DCA Strategy Service Initialized');
   }
 
@@ -49,6 +57,7 @@ export class DcaStrategyService {
           this.tradeAmount
         );
         this.logger.log(`Buy order executed: ${JSON.stringify(order)}`);
+        await this.logTrade('BUY', order);
         this.lastAction = 'BUY';
         this.lastTradeTimestamp = now;
       } else if (fastMA < slowMA && this.lastAction !== 'SELL') {
@@ -60,6 +69,7 @@ export class DcaStrategyService {
           this.tradeAmount
         );
         this.logger.log(`Sell order executed: ${JSON.stringify(order)}`);
+        await this.logTrade('SELL', order);
         this.lastAction = 'SELL';
         this.lastTradeTimestamp = now;
       } else {
@@ -73,5 +83,16 @@ export class DcaStrategyService {
   private calculateSMA(data: number[]): number {
     const sum = data.reduce((acc, val) => acc + val, 0);
     return sum / data.length;
+  }
+
+  private async logTrade(side: 'BUY' | 'SELL', order: any) {
+    const price = parseFloat(order?.price ?? '0');
+    const amount = parseFloat(order?.amount ?? '0');
+    const trade = new Trade();
+    trade.symbol = this.symbol;
+    trade.side = side;
+    trade.price = price;
+    trade.amount = amount;
+    await this.em.persistAndFlush(trade);
   }
 }
