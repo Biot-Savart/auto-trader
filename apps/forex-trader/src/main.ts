@@ -15,7 +15,7 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe());
 
   const config = new DocumentBuilder()
-    .setTitle('Forex Trader API')
+    .setTitle('Auto Trader API')
     .setDescription('The API description')
     .setVersion('1.0')
     .addBearerAuth() // optional, if you use JWT auth
@@ -27,7 +27,7 @@ async function bootstrap() {
   const port = process.env.PORT || 3001;
   await app.listen(port);
   Logger.log(
-    `🚀 Application is running on: http://localhost:${port}/${globalPrefix}`
+    `🚀 Auto Trader is running on: http://localhost:${port}/${globalPrefix}`
   );
 }
 
