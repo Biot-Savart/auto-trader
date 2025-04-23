@@ -1,4 +1,5 @@
 import {
+  BalanceSnapshot,
   DataAccessModule,
   mikroOrmConfigFactory,
   Trade,
@@ -18,15 +19,15 @@ import { StrategyModule } from './strategy/strategy.module';
       isGlobal: true,
       envFilePath: '.env', // adjust path if .env is elsewhere
     }),
-    ExchangeModule,
-    StrategyModule,
-    ScheduleModule.forRoot(),
-    DataAccessModule,
     MikroOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: mikroOrmConfigFactory,
     }),
-    MikroOrmModule.forFeature([Trade]), // Import entities you want available
+    MikroOrmModule.forFeature([Trade, BalanceSnapshot]), // Import entities you want available
+    ExchangeModule,
+    StrategyModule,
+    ScheduleModule.forRoot(),
+    DataAccessModule,
   ],
   controllers: [AppController],
   providers: [AppService],

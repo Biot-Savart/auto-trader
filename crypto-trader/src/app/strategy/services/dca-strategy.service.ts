@@ -1,6 +1,6 @@
-import { Trade } from '@forex-trader/shared/data-access';
+import { BalanceSnapshot, Trade } from '@forex-trader/shared/data-access';
 import { InjectRepository } from '@mikro-orm/nestjs';
-import { EntityManager, EntityRepository } from '@mikro-orm/postgresql';
+import { EntityRepository } from '@mikro-orm/postgresql';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { BinanceService } from '../../exchange/services/binance.service';
@@ -20,7 +20,8 @@ export class DcaStrategyService {
     private readonly binanceService: BinanceService,
     @InjectRepository(Trade)
     private readonly tradeRepo: EntityRepository<Trade>,
-    private readonly em: EntityManager
+    @InjectRepository(BalanceSnapshot)
+    private readonly snapshotRepo: EntityRepository<BalanceSnapshot>
   ) {
     this.logger.log('DCA Strategy Service Initialized');
   }
@@ -60,6 +61,7 @@ export class DcaStrategyService {
         await this.logTrade('BUY', order);
         this.lastAction = 'BUY';
         this.lastTradeTimestamp = now;
+        await this.logBalance();
       } else if (fastMA < slowMA && this.lastAction !== 'SELL') {
         this.logger.log(
           `Sell signal detected. Executing market sell for ${this.symbol}`
@@ -72,12 +74,18 @@ export class DcaStrategyService {
         await this.logTrade('SELL', order);
         this.lastAction = 'SELL';
         this.lastTradeTimestamp = now;
+        await this.logBalance();
       } else {
         this.logger.log('No actionable signal. Skipping trade.');
       }
     } catch (error) {
       this.logger.error(`Failed to execute smart trade: ${error.message}`);
     }
+  }
+
+  @Cron('0 * * * * *') // every minute
+  async logBalanceCron() {
+    await this.logBalance();
   }
 
   private calculateSMA(data: number[]): number {
@@ -95,6 +103,25 @@ export class DcaStrategyService {
     trade.amount = this.ensureFiveDecimals(amount);
     //await this.em.persistAndFlush(trade);
     await this.tradeRepo.getEntityManager().fork().persistAndFlush(trade);
+  }
+
+  private async logBalance() {
+    this.logger.log('Logging balance');
+    const balance = await this.binanceService.getBalance();
+    const forkedEM = this.snapshotRepo.getEntityManager().fork();
+
+    if (balance.info?.balances) {
+      for (const item of balance.info.balances) {
+        const total = parseFloat(item.free) + parseFloat(item.locked);
+        if (total > 0) {
+          const snap = new BalanceSnapshot();
+          snap.asset = item.asset;
+          snap.total = total;
+          snap.free = parseFloat(item.free);
+          await forkedEM.persistAndFlush(snap);
+        }
+      }
+    }
   }
 
   private ensureFiveDecimals(value: string | number): string {
