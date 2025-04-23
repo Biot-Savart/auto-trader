@@ -15,7 +15,7 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@forex-trader/data-access": ["shared/data-access/src/index.ts"]
+      "@forex-trader/shared/data-access": ["shared/data-access/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

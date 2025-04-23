@@ -2,12 +2,13 @@ import { MikroOrmModuleOptions } from '@mikro-orm/nestjs';
 import { PostgreSqlDriver } from '@mikro-orm/postgresql';
 import { TsMorphMetadataProvider } from '@mikro-orm/reflection';
 import { ConfigService } from '@nestjs/config';
+import { Trade } from './entities/trade.entity';
 
 export const mikroOrmConfigFactory = (
   configService: ConfigService
 ): MikroOrmModuleOptions => ({
-  entities: ['./dist/shared/data-access/src/entities'],
-  entitiesTs: ['./shared/data-access/src/entities'],
+  entities: [Trade],
+  //entitiesTs: ['./shared/data-access/src/entities'],
   migrations: {
     path: './shared/data-access/src/migrations',
   },

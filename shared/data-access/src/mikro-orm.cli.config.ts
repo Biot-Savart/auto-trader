@@ -6,8 +6,8 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 const config: MikroOrmModuleOptions = {
-  entities: ['./dist/shared/data-access/src/entities'], // Adjust as needed
-  entitiesTs: ['./shared/data-access/src/entities'],
+  entities: ['./dist/shared/data-access/src/entities/**/*.entity.js'], // Adjust as needed
+  entitiesTs: ['./shared/data-access/src/entities/**/*.entity.ts'],
   dbName: process.env['DATABASE_NAME'],
   host: process.env['DATABASE_HOST'],
   port: Number(process.env['DATABASE_PORT']),

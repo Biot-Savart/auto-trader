@@ -1,4 +1,4 @@
-import { Trade } from '@forex-trader/data-access';
+import { Trade } from '@forex-trader/shared/data-access';
 import { InjectRepository } from '@mikro-orm/nestjs';
 import { EntityManager, EntityRepository } from '@mikro-orm/postgresql';
 import { Injectable, Logger } from '@nestjs/common';
@@ -86,13 +86,19 @@ export class DcaStrategyService {
   }
 
   private async logTrade(side: 'BUY' | 'SELL', order: any) {
-    const price = parseFloat(order?.price ?? '0');
-    const amount = parseFloat(order?.amount ?? '0');
+    const price = order?.price?.toString() ?? '0.00000';
+    const amount = order?.amount?.toString() ?? '0.00000';
     const trade = new Trade();
     trade.symbol = this.symbol;
     trade.side = side;
-    trade.price = price;
-    trade.amount = amount;
-    await this.em.persistAndFlush(trade);
+    trade.price = this.ensureFiveDecimals(price);
+    trade.amount = this.ensureFiveDecimals(amount);
+    //await this.em.persistAndFlush(trade);
+    await this.tradeRepo.getEntityManager().fork().persistAndFlush(trade);
+  }
+
+  private ensureFiveDecimals(value: string | number): string {
+    const num = typeof value === 'number' ? value : parseFloat(value);
+    return num.toFixed(5); // Ensures exactly 5 decimal places
   }
 }

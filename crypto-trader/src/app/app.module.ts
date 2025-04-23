@@ -2,7 +2,7 @@ import {
   DataAccessModule,
   mikroOrmConfigFactory,
   Trade,
-} from '@forex-trader/data-access'; // Adjust the import path as necessary
+} from '@forex-trader/shared/data-access'; // Adjust the import path as necessary
 import { MikroOrmModule } from '@mikro-orm/nestjs';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';

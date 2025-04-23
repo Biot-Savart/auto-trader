@@ -11,11 +11,11 @@ export class Trade {
   @Property()
   side!: 'BUY' | 'SELL';
 
-  @Property()
-  price!: number;
+  @Property({ type: 'decimal', precision: 20, scale: 5 })
+  price!: string;
 
-  @Property()
-  amount!: number;
+  @Property({ type: 'decimal', precision: 20, scale: 5 })
+  amount!: string;
 
   @Property()
   timestamp: Date = new Date();

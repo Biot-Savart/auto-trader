@@ -37,21 +37,25 @@
         },
         "price": {
           "name": "price",
-          "type": "int",
+          "type": "numeric(20,5)",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
           "nullable": false,
-          "mappedType": "integer"
+          "precision": 20,
+          "scale": 5,
+          "mappedType": "decimal"
         },
         "amount": {
           "name": "amount",
-          "type": "int",
+          "type": "numeric(20,5)",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
           "nullable": false,
-          "mappedType": "integer"
+          "precision": 20,
+          "scale": 5,
+          "mappedType": "decimal"
         },
         "timestamp": {
           "name": "timestamp",
