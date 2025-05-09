@@ -9,11 +9,11 @@ export class BalanceSnapshot {
   @Property()
   asset!: string;
 
-  @Property()
-  total!: number;
+  @Property({ type: 'decimal', precision: 17, scale: 8 })
+  total!: string;
 
-  @Property()
-  free!: number;
+  @Property({ type: 'decimal', precision: 17, scale: 8 })
+  free!: string;
 
   @Property()
   timestamp: Date = new Date();

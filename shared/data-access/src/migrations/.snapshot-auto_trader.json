@@ -27,21 +27,25 @@
         },
         "total": {
           "name": "total",
-          "type": "int",
+          "type": "numeric(17,8)",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
           "nullable": false,
-          "mappedType": "integer"
+          "precision": 17,
+          "scale": 8,
+          "mappedType": "decimal"
         },
         "free": {
           "name": "free",
-          "type": "int",
+          "type": "numeric(17,8)",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
           "nullable": false,
-          "mappedType": "integer"
+          "precision": 17,
+          "scale": 8,
+          "mappedType": "decimal"
         },
         "timestamp": {
           "name": "timestamp",
@@ -105,24 +109,24 @@
         },
         "price": {
           "name": "price",
-          "type": "numeric(20,5)",
+          "type": "numeric(17,8)",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
           "nullable": false,
-          "precision": 20,
-          "scale": 5,
+          "precision": 17,
+          "scale": 8,
           "mappedType": "decimal"
         },
         "amount": {
           "name": "amount",
-          "type": "numeric(20,5)",
+          "type": "numeric(17,8)",
           "unsigned": false,
           "autoincrement": false,
           "primary": false,
           "nullable": false,
-          "precision": 20,
-          "scale": 5,
+          "precision": 17,
+          "scale": 8,
           "mappedType": "decimal"
         },
         "timestamp": {

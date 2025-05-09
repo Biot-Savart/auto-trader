@@ -11,10 +11,10 @@ export class Trade {
   @Property()
   side!: 'BUY' | 'SELL';
 
-  @Property({ type: 'decimal', precision: 20, scale: 5 })
+  @Property({ type: 'decimal', precision: 17, scale: 8 })
   price!: string;
 
-  @Property({ type: 'decimal', precision: 20, scale: 5 })
+  @Property({ type: 'decimal', precision: 17, scale: 8 })
   amount!: string;
 
   @Property()

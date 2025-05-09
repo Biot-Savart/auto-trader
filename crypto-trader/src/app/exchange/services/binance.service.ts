@@ -11,6 +11,7 @@ export class BinanceService {
       secret: process.env.BINANCE_SECRET_KEY,
       options: {
         defaultType: 'spot',
+        adjustForTimeDifference: true,
       },
     });
 
