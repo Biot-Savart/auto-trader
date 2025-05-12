@@ -112,9 +112,16 @@ const updateChartOptions = () => {
       type: 'category',
       data: balanceData.value.map((t: any) => new Date(t.timestamp).toLocaleString()),
     },
-    yAxis: {
-      type: 'value',
-    },
+    yAxis: [
+      {
+        type: 'value',
+        name: 'Amount'
+      },
+      {
+        type: 'value',
+        name: 'USDT'
+      }
+    ],
     series: [
       {
         name: 'Total',
@@ -122,6 +129,7 @@ const updateChartOptions = () => {
         data: balanceData.value.map((t: any) => parseFloat(t.total)),
         smooth: true,
         areaStyle: {},
+        yAxisIndex: 0
       },
       {
         name: 'Free',
@@ -129,7 +137,16 @@ const updateChartOptions = () => {
         data: balanceData.value.map((t: any) => parseFloat(t.free)),
         smooth: true,
         areaStyle: {},
+        yAxisIndex: 0
       },
+      {
+        name: 'USDT',
+        type: 'line',
+        data: balanceData.value.map((t: any) => parseFloat(t.usdtValue)),
+        smooth: true,
+        areaStyle: {},
+        yAxisIndex: 1
+      }
     ],
   };
 };

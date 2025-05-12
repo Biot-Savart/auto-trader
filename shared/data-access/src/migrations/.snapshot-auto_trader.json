@@ -56,6 +56,18 @@
           "nullable": false,
           "length": 6,
           "mappedType": "datetime"
+        },
+        "usdt_value": {
+          "name": "usdt_value",
+          "type": "numeric(17,8)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "precision": 17,
+          "scale": 8,
+          "default": "0",
+          "mappedType": "decimal"
         }
       },
       "name": "balance_snapshot",

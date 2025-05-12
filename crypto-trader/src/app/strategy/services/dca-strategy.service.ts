@@ -274,6 +274,8 @@ export class DcaStrategyService {
       }
     }
 
+    let totalUSDTValue = 0;
+
     for (const asset of this.assetsToLog) {
       const bal = balancesMap[asset];
       const free = bal?.free ?? '0';
@@ -285,18 +287,32 @@ export class DcaStrategyService {
       snap.total = this.ensureEightDecimals(total);
       snap.free = this.ensureEightDecimals(free);
 
+      // Get USDT equivalent value
+      let usdtValue = 0;
+      if (asset === 'USDT') {
+        usdtValue = parseFloat(total);
+      } else {
+        const price = await this.binanceService
+          .getCurrentPrice(`${asset}/USDT`)
+          .catch(() => 0);
+        usdtValue = parseFloat(total) * price;
+      }
+      totalUSDTValue += usdtValue;
+      snap.usdtValue = this.ensureEightDecimals(usdtValue);
+
       forkedEM.persist(snap);
 
       if (asset === 'USDT') {
         this.balancesGateway.emitBalance({
           asset,
-          total: this.ensureEightDecimals(total),
-          free: this.ensureEightDecimals(free),
+          total: snap.total,
+          free: snap.free,
           timestamp: new Date(),
         });
       }
     }
 
+    this.logger.log(`Total portfolio USDT value: ${totalUSDTValue.toFixed(2)}`);
     await forkedEM.flush();
   }
 
