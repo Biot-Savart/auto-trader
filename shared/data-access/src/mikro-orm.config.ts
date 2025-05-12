@@ -1,6 +1,8 @@
 import { MikroOrmModuleOptions } from '@mikro-orm/nestjs';
-import { PostgreSqlDriver } from '@mikro-orm/postgresql';
-import { TsMorphMetadataProvider } from '@mikro-orm/reflection';
+import {
+  PostgreSqlDriver,
+  ReflectMetadataProvider,
+} from '@mikro-orm/postgresql';
 import { ConfigService } from '@nestjs/config';
 import { BalanceSnapshot } from './entities/balance-snapshot.entity';
 import { Trade } from './entities/trade.entity';
@@ -9,7 +11,7 @@ export const mikroOrmConfigFactory = (
   configService: ConfigService
 ): MikroOrmModuleOptions => ({
   entities: [Trade, BalanceSnapshot],
-  //entitiesTs: ['./shared/data-access/src/entities'],
+  entitiesTs: [Trade, BalanceSnapshot],
   migrations: {
     path: './shared/data-access/src/migrations',
   },
@@ -20,6 +22,6 @@ export const mikroOrmConfigFactory = (
   port: parseInt(configService.getOrThrow('DATABASE_PORT'), 10),
   user: configService.getOrThrow('DATABASE_USER'),
   password: configService.getOrThrow('DATABASE_PASSWORD'),
-  metadataProvider: TsMorphMetadataProvider,
+  metadataProvider: ReflectMetadataProvider,
   debug: true,
 });

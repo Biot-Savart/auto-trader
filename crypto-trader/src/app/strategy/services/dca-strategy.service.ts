@@ -4,7 +4,9 @@ import { EntityRepository } from '@mikro-orm/postgresql';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import ccxt from 'ccxt';
+import { BalancesGateway } from '../../balances/gateways/balances.gateway';
 import { BinanceService } from '../../exchange/services/binance.service';
+import { TradeGateway } from '../../trades/gateways/trade.gateway';
 
 @Injectable()
 export class DcaStrategyService {
@@ -12,10 +14,10 @@ export class DcaStrategyService {
 
   private symbolsToTrade = ['BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT'];
   private maxTradeUSDBySymbol: Record<string, number> = {
-    'BTC/USDT': 200,
-    'ETH/USDT': 200,
-    'LTC/USDT': 200,
-    'XRP/USDT': 200,
+    'BTC/USDT': 2000,
+    'ETH/USDT': 2000,
+    'LTC/USDT': 2000,
+    'XRP/USDT': 2000,
   };
   private fastPeriod = 5;
   private slowPeriod = 20;
@@ -36,7 +38,9 @@ export class DcaStrategyService {
     @InjectRepository(Trade)
     private readonly tradeRepo: EntityRepository<Trade>,
     @InjectRepository(BalanceSnapshot)
-    private readonly snapshotRepo: EntityRepository<BalanceSnapshot>
+    private readonly snapshotRepo: EntityRepository<BalanceSnapshot>,
+    private readonly tradeGateway: TradeGateway,
+    private readonly balancesGateway: BalancesGateway
   ) {
     this.logger.log('DCA Strategy Service Initialized');
   }
@@ -245,6 +249,14 @@ export class DcaStrategyService {
     trade.price = this.ensureEightDecimals(order?.price ?? '0.00000');
     trade.amount = this.ensureEightDecimals(order?.amount ?? '0.00000');
     await this.tradeRepo.getEntityManager().fork().persistAndFlush(trade);
+
+    this.tradeGateway.emitTrade({
+      symbol,
+      side,
+      price: trade.price,
+      amount: trade.amount,
+      timestamp: new Date(),
+    });
   }
 
   private async logBalance() {
@@ -274,6 +286,15 @@ export class DcaStrategyService {
       snap.free = this.ensureEightDecimals(free);
 
       forkedEM.persist(snap);
+
+      if (asset === 'USDT') {
+        this.balancesGateway.emitBalance({
+          asset,
+          total: this.ensureEightDecimals(total),
+          free: this.ensureEightDecimals(free),
+          timestamp: new Date(),
+        });
+      }
     }
 
     await forkedEM.flush();

@@ -26,6 +26,11 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup(globalPrefix, app, document);
 
+  app.enableCors({
+    origin: 'http://localhost:4200', // allow your Nuxt frontend
+    credentials: true, // if using cookies/auth headers
+  });
+
   const port = process.env.PORT || 3002;
   await app.listen(port);
   Logger.log(
