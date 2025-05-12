@@ -38,7 +38,14 @@
       "options": {
         "targetName": "test"
       },
-      "exclude": ["apps/forex-trader-e2e/**/*"]
+      "exclude": ["apps/forex-trader-e2e/**/*", "crypto-trader-e2e/**/*"]
     }
-  ]
+  ],
+  "targetDefaults": {
+    "@nx/js:tsc": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"]
+    }
+  }
 }

@@ -6,7 +6,9 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as dotenv from 'dotenv';
 import { AppModule } from './app/app.module';
+dotenv.config();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -15,7 +17,7 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe());
 
   const config = new DocumentBuilder()
-    .setTitle('Forex Trader API')
+    .setTitle('Crypto Trader API')
     .setDescription('The API description')
     .setVersion('1.0')
     .addBearerAuth() // optional, if you use JWT auth
@@ -24,10 +26,10 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup(globalPrefix, app, document);
 
-  const port = process.env.PORT || 3001;
+  const port = process.env.PORT || 3002;
   await app.listen(port);
   Logger.log(
-    `🚀 Forex Trader is running on: http://localhost:${port}/${globalPrefix}`
+    `🚀 Crypto Trader is running on: http://localhost:${port}/${globalPrefix}`
   );
 }
 
