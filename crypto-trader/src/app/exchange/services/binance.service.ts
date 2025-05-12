@@ -35,4 +35,9 @@ export class BinanceService {
   async getBalance() {
     return await this.client.fetchBalance();
   }
+
+  async getCurrentPrice(symbol: string): Promise<number> {
+    const ticker = await this.client.fetchTicker(symbol);
+    return ticker.last;
+  }
 }
