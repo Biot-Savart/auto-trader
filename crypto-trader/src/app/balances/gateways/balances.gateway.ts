@@ -21,7 +21,11 @@ export class BalancesGateway implements OnGatewayInit {
     this.logger.log('Balances WebSocket Gateway Initialized');
   }
 
-  emitBalance(trade: any) {
-    this.server.emit('newBalance', trade);
+  emitBalance(balance: any) {
+    this.server.emit('newBalance', balance);
+  }
+
+  emitPortfolio(portfolioBalance: any) {
+    this.server.emit('newPortfolioBalance', portfolioBalance);
   }
 }

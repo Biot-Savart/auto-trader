@@ -1,4 +1,8 @@
-import { BalanceSnapshot, Trade } from '@forex-trader/shared/data-access';
+import {
+  BalanceSnapshot,
+  PortfolioSnapshot,
+  Trade,
+} from '@forex-trader/shared/data-access';
 import { InjectRepository } from '@mikro-orm/nestjs';
 import { EntityRepository } from '@mikro-orm/postgresql';
 import { Injectable, Logger } from '@nestjs/common';
@@ -40,7 +44,9 @@ export class DcaStrategyService {
     @InjectRepository(BalanceSnapshot)
     private readonly snapshotRepo: EntityRepository<BalanceSnapshot>,
     private readonly tradeGateway: TradeGateway,
-    private readonly balancesGateway: BalancesGateway
+    private readonly balancesGateway: BalancesGateway,
+    @InjectRepository(PortfolioSnapshot)
+    private readonly portfolioRepo: EntityRepository<PortfolioSnapshot>
   ) {
     this.logger.log('DCA Strategy Service Initialized');
   }
@@ -215,10 +221,33 @@ export class DcaStrategyService {
   ) {
     const price = await this.binanceService.getCurrentPrice(symbol);
     const market = markets[symbol];
-    let amount = Math.min(
+    // let amount = Math.min(
+    //   usdAmount / price,
+    //   (this.maxTradeUSDBySymbol[symbol] ?? Infinity) / price
+    // );
+
+    const rawAmount = Math.min(
       usdAmount / price,
       (this.maxTradeUSDBySymbol[symbol] ?? Infinity) / price
     );
+
+    let amount = parseFloat(
+      this.ccxtClient.amountToPrecision(symbol, rawAmount)
+    );
+    //amount = parseFloat(amount);
+
+    const minAmount = market.limits.amount.min;
+    const minCost = market.limits.cost.min;
+
+    if (amount < minAmount) {
+      amount = minAmount;
+    }
+    if (amount * price < minCost) {
+      amount = minCost / price;
+    }
+
+    // Re-round after enforcing limits
+    amount = parseFloat(this.ccxtClient.amountToPrecision(symbol, amount));
 
     if (amount < market.limits.amount.min) amount = market.limits.amount.min;
     if (amount * price < market.limits.cost.min)
@@ -302,15 +331,26 @@ export class DcaStrategyService {
 
       forkedEM.persist(snap);
 
-      if (asset === 'USDT') {
-        this.balancesGateway.emitBalance({
-          asset,
-          total: snap.total,
-          free: snap.free,
-          timestamp: new Date(),
-        });
-      }
+      this.balancesGateway.emitBalance({
+        asset,
+        total: snap.total,
+        free: snap.free,
+        timestamp: new Date(),
+      });
     }
+
+    const snapshot = new PortfolioSnapshot();
+    snapshot.totalValueUSDT = this.ensureEightDecimals(totalUSDTValue);
+    snapshot.timestamp = new Date();
+    await this.portfolioRepo
+      .getEntityManager()
+      .fork()
+      .persistAndFlush(snapshot);
+
+    this.balancesGateway.emitPortfolio({
+      totalValueUSDT: snapshot.totalValueUSDT,
+      timestamp: snapshot.timestamp,
+    });
 
     this.logger.log(`Total portfolio USDT value: ${totalUSDTValue.toFixed(2)}`);
     await forkedEM.flush();

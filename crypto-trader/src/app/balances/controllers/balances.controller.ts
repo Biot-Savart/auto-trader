@@ -13,4 +13,12 @@ export class BalancesController {
   ) {
     return this.balancesService.getAllSnapshots(asset, from, to);
   }
+
+  @Get('portfolio')
+  async getPortfolioSnapshots(
+    @Query('from') from?: string,
+    @Query('to') to?: string
+  ) {
+    return this.balancesService.getPortfolioSnapshots(from, to);
+  }
 }

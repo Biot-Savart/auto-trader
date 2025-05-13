@@ -8,9 +8,9 @@
         <label class="label">Symbol</label>
         <div class="select">
           <select v-model="symbol">
-            <option value="">
+            <!-- <option value="">
               All
-            </option>
+            </option> -->
             <option value="BTC/USDT">
               BTC/USDT
             </option>
@@ -71,7 +71,7 @@ const { $socket } = useNuxtApp() as unknown as { $socket: Socket };
 
 const VChart = defineAsyncComponent(() => import('vue-echarts'));
 
-const symbol = ref('');
+const symbol = ref('BTC/USDT');
 const from = ref('');
 const to = ref('');
 const tradeData = ref([]);

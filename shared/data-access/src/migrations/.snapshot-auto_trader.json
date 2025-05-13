@@ -99,6 +99,57 @@
           "nullable": false,
           "mappedType": "integer"
         },
+        "total_value_usdt": {
+          "name": "total_value_usdt",
+          "type": "numeric(17,8)",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "precision": 17,
+          "scale": 8,
+          "mappedType": "decimal"
+        },
+        "timestamp": {
+          "name": "timestamp",
+          "type": "timestamptz",
+          "unsigned": false,
+          "autoincrement": false,
+          "primary": false,
+          "nullable": false,
+          "length": 6,
+          "mappedType": "datetime"
+        }
+      },
+      "name": "portfolio_snapshot",
+      "schema": "public",
+      "indexes": [
+        {
+          "keyName": "portfolio_snapshot_pkey",
+          "columnNames": [
+            "id"
+          ],
+          "composite": false,
+          "constraint": true,
+          "primary": true,
+          "unique": true
+        }
+      ],
+      "checks": [],
+      "foreignKeys": {},
+      "nativeEnums": {}
+    },
+    {
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "unsigned": false,
+          "autoincrement": true,
+          "primary": true,
+          "nullable": false,
+          "mappedType": "integer"
+        },
         "symbol": {
           "name": "symbol",
           "type": "varchar(255)",

@@ -1,4 +1,7 @@
-import { BalanceSnapshot } from '@forex-trader/shared/data-access';
+import {
+  BalanceSnapshot,
+  PortfolioSnapshot,
+} from '@forex-trader/shared/data-access';
 import { InjectRepository } from '@mikro-orm/nestjs';
 import { EntityRepository } from '@mikro-orm/postgresql';
 import { Injectable } from '@nestjs/common';
@@ -7,7 +10,9 @@ import { Injectable } from '@nestjs/common';
 export class BalancesService {
   constructor(
     @InjectRepository(BalanceSnapshot)
-    private readonly snapshotRepo: EntityRepository<BalanceSnapshot>
+    private readonly snapshotRepo: EntityRepository<BalanceSnapshot>,
+    @InjectRepository(PortfolioSnapshot)
+    private readonly portfolioRepo: EntityRepository<PortfolioSnapshot>
   ) {}
 
   async getAllSnapshots(
@@ -18,6 +23,18 @@ export class BalancesService {
     const qb = this.snapshotRepo.createQueryBuilder('b');
 
     if (asset) qb.andWhere({ asset });
+    if (from) qb.andWhere('b.timestamp >= ?', [new Date(from)]);
+    if (to) qb.andWhere('b.timestamp <= ?', [new Date(to)]);
+
+    return qb.orderBy({ timestamp: 'ASC' }).getResultList();
+  }
+
+  async getPortfolioSnapshots(
+    from?: string,
+    to?: string
+  ): Promise<PortfolioSnapshot[]> {
+    const qb = this.portfolioRepo.createQueryBuilder('b');
+
     if (from) qb.andWhere('b.timestamp >= ?', [new Date(from)]);
     if (to) qb.andWhere('b.timestamp <= ?', [new Date(to)]);
 

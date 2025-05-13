@@ -16,6 +16,9 @@
         <NuxtLink to="/trades">
           Trades
         </NuxtLink>
+        <NuxtLink to="/portfolio">
+          Portfolio
+        </NuxtLink>
       </nav>
     </header>
     <nuxt-page />
