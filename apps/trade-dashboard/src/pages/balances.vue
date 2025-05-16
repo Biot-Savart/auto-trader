@@ -1,8 +1,6 @@
 <template>
   <div class="box">
-    <h1 class="title is-4 mb-4">
-      Balance History
-    </h1>
+    <h1 class="title is-4 mb-4">Balance History</h1>
     <div class="field is-grouped mb-4">
       <div class="control">
         <label class="label">Symbol</label>
@@ -11,41 +9,23 @@
             <!-- <option value="">
               All
             </option> -->
-            <option value="USDT">
-              USDT
-            </option>
-            <option value="BTC">
-              BTC
-            </option>
-            <option value="ETH">
-              ETH
-            </option>
-            <option value="LTC">
-              LTC
-            </option>
-            <option value="XRP">
-              XRP
-            </option>
+            <option value="USDT">USDT</option>
+            <option value="BTC">BTC</option>
+            <option value="ETH">ETH</option>
+            <option value="LTC">LTC</option>
+            <option value="XRP">XRP</option>
           </select>
         </div>
       </div>
 
       <div class="control">
         <label class="label">From</label>
-        <input
-          v-model="from"
-          class="input"
-          type="date"
-        >
+        <input v-model="from" class="input" type="date" />
       </div>
 
       <div class="control">
         <label class="label">To</label>
-        <input
-          v-model="to"
-          class="input"
-          type="date"
-        >
+        <input v-model="to" class="input" type="date" />
       </div>
     </div>
 
@@ -55,12 +35,7 @@
         :option="chartOptions"
         style="height: 600px; width: 100%"
       />
-      <div
-        v-else
-        class="notification is-warning"
-      >
-        No trade data available
-      </div>
+      <div v-else class="notification is-warning">No trade data available</div>
     </ClientOnly>
   </div>
 </template>
@@ -88,7 +63,9 @@ const fetchTrades = async () => {
   if (to.value) params.to = to.value;
 
   try {
-    const { data } = await axios.get('http://localhost:3002/api/balances', { params });
+    const { data } = await axios.get('http://localhost:3002/api/balances', {
+      params,
+    });
     balanceData.value = data || [];
     updateChartOptions();
   } catch (error) {
@@ -104,56 +81,78 @@ const updateChartOptions = () => {
     return;
   }
 
+  const totalLine = balanceData.value.map((t) => [
+    new Date(t.timestamp).getTime(),
+    parseFloat(t.total),
+  ]);
+  const freeLine = balanceData.value.map((t) => [
+    new Date(t.timestamp).getTime(),
+    parseFloat(t.free),
+  ]);
+  const usdtValueLine = balanceData.value.map((t) => [
+    new Date(t.timestamp).getTime(),
+    parseFloat(t.usdtValue),
+  ]);
   chartOptions.value = {
     tooltip: {
       trigger: 'axis',
     },
+    legend: {
+      data: ['Total', 'Free', 'USDT'],
+    },
     xAxis: {
-      type: 'category',
-      data: balanceData.value.map((t: any) => new Date(t.timestamp).toLocaleString()),
+      type: 'time',
+      name: 'Time',
+      axisLabel: {
+        formatter: (value: number) => new Date(value).toLocaleTimeString(),
+      },
     },
     yAxis: [
       {
         type: 'value',
-        name: 'Amount'
+        name: 'Amount',
+        min: 'dataMin', // avoids zero-padding
+        axisLine: { show: true },
       },
       {
         type: 'value',
-        name: 'USDT'
-      }
+        name: 'USDT',
+        min: 'dataMin', // avoids zero-padding
+        axisLine: { show: true },
+      },
     ],
     series: [
       {
         name: 'Total',
         type: 'line',
-        data: balanceData.value.map((t: any) => parseFloat(t.total)),
+        data: totalLine,
         smooth: true,
         areaStyle: {},
-        yAxisIndex: 0
+        yAxisIndex: 0,
       },
       {
         name: 'Free',
         type: 'line',
-        data: balanceData.value.map((t: any) => parseFloat(t.free)),
+        data: freeLine,
         smooth: true,
         areaStyle: {},
-        yAxisIndex: 0
+        yAxisIndex: 0,
       },
       {
         name: 'USDT',
         type: 'line',
-        data: balanceData.value.map((t: any) => parseFloat(t.usdtValue)),
+        data: usdtValueLine,
         smooth: true,
         areaStyle: {},
-        yAxisIndex: 1
-      }
+        yAxisIndex: 1,
+      },
     ],
   };
 };
 
 watch([asset, from, to], fetchTrades);
 onMounted(() => {
-  fetchTrades()
+  fetchTrades();
 
   $socket.on('newBalance', (balance) => {
     console.log('New balance received:', balance);
@@ -163,15 +162,14 @@ onMounted(() => {
       (!from.value || new Date(balance.timestamp) >= new Date(from.value)) &&
       (!to.value || new Date(balance.timestamp) <= new Date(to.value))
     ) {
-      balanceData.value.push(balance)
+      balanceData.value.push(balance);
     }
-  })
-})
+  });
+});
 
 onUnmounted(() => {
-  $socket.off('newBalance')
-})
+  $socket.off('newBalance');
+});
 </script>
 
-<style scoped>
-</style>
+<style scoped></style>

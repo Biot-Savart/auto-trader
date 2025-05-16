@@ -187,6 +187,7 @@ export class DcaStrategyService {
     const price = await this.binanceService.getCurrentPrice(symbol);
     const maxUSD = this.maxTradeUSDBySymbol[symbol] ?? Infinity;
     const usdToSpend = Math.min(maxUSD, usdtFree);
+    const minimumTrade = (markets[symbol].limits.amount.min ?? 0) * price;
 
     if (usdToSpend <= 0) {
       this.logger.log(`[${symbol}] No USDT available for standalone buy`);
@@ -200,12 +201,31 @@ export class DcaStrategyService {
     if (amount * price < market.limits.cost.min)
       amount = market.limits.cost.min / price;
 
+    if (amount * price > usdtFree) {
+      this.logger.warn(
+        `[${symbol}] Not enough USDT for minimum trade. Required: ${(
+          amount * price
+        ).toFixed(2)}, Available: ${usdtFree}`
+      );
+      return;
+    }
+
+    if (amount * price < minimumTrade) {
+      this.logger.warn(
+        `[${symbol}] Minimum trade not met. Required: ${minimumTrade}, Available: ${
+          amount * price
+        }`
+      );
+      return;
+    }
+
     try {
       const order = await this.binanceService.placeMarketBuy(symbol, amount);
       this.logger.log(`[${symbol}] Bought ${amount}`);
       await this.logTrade('BUY', order, symbol);
       this.lastActions[symbol] = 'BUY';
       this.lastTradeTimestamps[symbol] = now;
+      this.logBalance();
     } catch (e) {
       this.logger.error(
         `Standalone buy error for ${symbol}: ${JSON.stringify(e)}`
@@ -221,43 +241,53 @@ export class DcaStrategyService {
   ) {
     const price = await this.binanceService.getCurrentPrice(symbol);
     const market = markets[symbol];
-    // let amount = Math.min(
-    //   usdAmount / price,
-    //   (this.maxTradeUSDBySymbol[symbol] ?? Infinity) / price
-    // );
 
-    const rawAmount = Math.min(
-      usdAmount / price,
-      (this.maxTradeUSDBySymbol[symbol] ?? Infinity) / price
-    );
+    const balance = await this.binanceService.getBalance();
+    const usdtFree = Number(balance['USDT']?.free ?? 0);
+
+    const maxUSD = this.maxTradeUSDBySymbol[symbol] ?? Infinity;
+    const usdToSpend = Math.min(maxUSD, usdAmount, usdtFree);
+
+    if (usdToSpend <= 0) {
+      this.logger.warn(
+        `[${symbol}] Insufficient USDT balance to rebuy. Needed: ${usdAmount}, Available: ${usdtFree}`
+      );
+      return;
+    }
+
+    let rawAmount = usdToSpend / price;
+    rawAmount = Math.min(rawAmount, (maxUSD ?? Infinity) / price);
 
     let amount = parseFloat(
       this.ccxtClient.amountToPrecision(symbol, rawAmount)
     );
-    //amount = parseFloat(amount);
-
     const minAmount = market.limits.amount.min;
     const minCost = market.limits.cost.min;
 
-    if (amount < minAmount) {
-      amount = minAmount;
-    }
-    if (amount * price < minCost) {
-      amount = minCost / price;
-    }
+    if (amount < minAmount) amount = minAmount;
+    if (amount * price < minCost) amount = minCost / price;
 
-    // Re-round after enforcing limits
     amount = parseFloat(this.ccxtClient.amountToPrecision(symbol, amount));
 
-    if (amount < market.limits.amount.min) amount = market.limits.amount.min;
-    if (amount * price < market.limits.cost.min)
-      amount = market.limits.cost.min / price;
+    if (amount * price > usdtFree) {
+      this.logger.warn(
+        `[${symbol}] Not enough USDT for minimum trade after rounding: required ${(
+          amount * price
+        ).toFixed(2)}, available ${usdtFree}`
+      );
+      return;
+    }
 
-    const order = await this.binanceService.placeMarketBuy(symbol, amount);
-    this.logger.log(`[${symbol}] Bought approx ${amount}`);
-    await this.logTrade('BUY', order, symbol);
-    this.lastActions[symbol] = 'BUY';
-    this.lastTradeTimestamps[symbol] = now;
+    try {
+      const order = await this.binanceService.placeMarketBuy(symbol, amount);
+      this.logger.log(`[${symbol}] Bought approx ${amount}`);
+      await this.logTrade('BUY', order, symbol);
+      this.lastActions[symbol] = 'BUY';
+      this.lastTradeTimestamps[symbol] = now;
+      this.logBalance();
+    } catch (e) {
+      this.logger.error(`Buy error for ${symbol}: ${JSON.stringify(e)}`);
+    }
   }
 
   private selectStrongestCandidate(

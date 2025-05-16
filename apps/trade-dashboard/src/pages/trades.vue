@@ -29,33 +29,18 @@
 
       <div class="control">
         <label class="label">From</label>
-        <input
-          v-model="from"
-          class="input"
-          type="date"
-        >
+        <input v-model="from" class="input" type="date">
       </div>
 
       <div class="control">
         <label class="label">To</label>
-        <input
-          v-model="to"
-          class="input"
-          type="date"
-        >
+        <input v-model="to" class="input" type="date">
       </div>
     </div>
 
     <ClientOnly>
-      <v-chart
-        v-if="chartOptions"
-        :option="chartOptions"
-        style="height: 600px; width: 100%"
-      />
-      <div
-        v-else
-        class="notification is-warning"
-      >
+      <v-chart v-if="chartOptions" :option="chartOptions" style="height: 600px; width: 100%" />
+      <div v-else class="notification is-warning">
         No trade data available
       </div>
     </ClientOnly>
@@ -100,42 +85,93 @@ const updateChartOptions = () => {
     return;
   }
 
+  const buyPoints = tradeData.value
+    .filter(t => t.side === 'BUY')
+    .map(t => [
+      new Date(t.timestamp).getTime(),
+      parseFloat(t.amount),
+      parseFloat(t.price) * parseFloat(t.amount) // volume
+    ]);
+
+  const sellPoints = tradeData.value
+    .filter(t => t.side === 'SELL')
+    .map(t => [
+      new Date(t.timestamp).getTime(),
+      parseFloat(t.amount),
+      parseFloat(t.price) * parseFloat(t.amount)
+    ]);
+
+  const priceLine = tradeData.value.map(t => [new Date(t.timestamp).getTime(), parseFloat(t.price)]);
+
   chartOptions.value = {
     tooltip: {
       trigger: 'axis',
+      axisPointer: {
+        type: 'cross'
+      },
+      formatter: (params) => {
+        return params.map(p => {
+          const time = new Date(p.value[0]).toLocaleString();
+          const label = p.seriesName;
+          const value = p.value[1].toFixed(4);
+          return `${label}<br/>${time} → ${value}`;
+        }).join('<br/>');
+      }
+    },
+    legend: {
+      data: ['Price', 'Buy Amount', 'Sell Amount']
     },
     xAxis: {
-      type: 'category',
-      data: tradeData.value.map((t: any) => new Date(t.timestamp).toLocaleString()),
+      type: 'time',
+      name: 'Time',
+      axisLabel: {
+        formatter: (value: number) => new Date(value).toLocaleTimeString()
+      }
     },
     yAxis: [
       {
         type: 'value',
-        name: 'Price'
+        name: 'Price',
+        min: 'dataMin',
+        axisLine: { show: true }
       },
       {
         type: 'value',
-        name: 'Amount'
+        name: 'Amount',
+        min: 'dataMin',
+        axisLine: { show: true }
       }
     ],
     series: [
       {
         name: 'Price',
         type: 'line',
-        data: tradeData.value.map((t: any) => parseFloat(t.price)),
+        data: priceLine,
+        yAxisIndex: 0,
         smooth: true,
         areaStyle: {},
-        yAxisIndex: 0
       },
       {
-        name: 'Amount',
-        type: 'line',
-        data: tradeData.value.map((t: any) => parseFloat(t.amount)),
-        smooth: true,
-        areaStyle: {},
-        yAxisIndex: 1
+        name: 'Buy Amount',
+        type: 'scatter',
+        data: buyPoints,
+        yAxisIndex: 1,
+        symbolSize: (val) => Math.max(6, Math.sqrt(val[2])),
+        itemStyle: {
+          color: '#4caf50'
+        }
+      },
+      {
+        name: 'Sell Amount',
+        type: 'scatter',
+        data: sellPoints,
+        yAxisIndex: 1,
+        symbolSize: (val) => Math.max(6, Math.sqrt(val[2])),
+        itemStyle: {
+          color: '#f44336'
+        }
       }
-    ],
+    ]
   };
 };
 
@@ -160,5 +196,4 @@ onUnmounted(() => {
 });
 </script>
 
-<style scoped>
-</style>
+<style scoped></style>

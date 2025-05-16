@@ -22,7 +22,6 @@ export class TradeGateway implements OnGatewayInit {
   }
 
   emitTrade(trade: any) {
-    console.log('Emitting trade:', trade);
     this.server.emit('newTrade', trade);
   }
 }

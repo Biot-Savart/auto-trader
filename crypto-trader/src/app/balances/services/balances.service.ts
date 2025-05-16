@@ -38,6 +38,31 @@ export class BalancesService {
     if (from) qb.andWhere('b.timestamp >= ?', [new Date(from)]);
     if (to) qb.andWhere('b.timestamp <= ?', [new Date(to)]);
 
-    return qb.orderBy({ timestamp: 'ASC' }).getResultList();
+    const result = await qb.orderBy({ timestamp: 'ASC' }).getResultList();
+
+    return this.filterOutliers(result, 'totalValueUSDT');
+  }
+
+  /**
+   * Filters out outliers using the z-score method.
+   * @param data Array of snapshots with a numeric property (e.g., total or totalValueUSDT)
+   * @param key The property to check for outliers
+   * @param threshold Z-score threshold (commonly 2 or 3)
+   */
+  private filterOutliers<T extends { [key: string]: any }>(
+    data: T[],
+    key: string,
+    threshold = 3
+  ): T[] {
+    const values = data.map((d) => parseFloat(d[key]));
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const std = Math.sqrt(
+      values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / values.length
+    );
+
+    return data.filter((d, i) => {
+      const z = std === 0 ? 0 : Math.abs((values[i] - mean) / std);
+      return z <= threshold;
+    });
   }
 }

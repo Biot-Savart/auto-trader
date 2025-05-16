@@ -1,7 +1,8 @@
 // apps/trade-dashboard/src/plugins/echarts.client.ts
-import { LineChart } from 'echarts/charts';
+import { BarChart, LineChart, ScatterChart } from 'echarts/charts';
 import {
   DatasetComponent,
+  DataZoomComponent,
   GridComponent,
   LegendComponent,
   TitleComponent,
@@ -19,6 +20,9 @@ use([
   TitleComponent,
   DatasetComponent,
   LegendComponent,
+  BarChart,
+  ScatterChart,
+  DataZoomComponent,
 ]);
 
 export default defineNuxtPlugin((nuxtApp) => {
