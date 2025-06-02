@@ -7,4 +7,5 @@ export default {
   },
   moduleFileExtensions: ['ts', 'js', 'html'],
   coverageDirectory: '../coverage/crypto-trader',
+  setupFiles: ['./jest.setup.ts'],
 };
