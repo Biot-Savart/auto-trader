@@ -4,6 +4,9 @@ import * as ccxt from 'ccxt';
 @Injectable()
 export class BinanceService {
   private client: ccxt.binance;
+  private readonly exchange = new ccxt.binance({
+    options: { defaultType: 'spot' },
+  });
 
   constructor() {
     this.client = new ccxt.binance({
@@ -16,6 +19,10 @@ export class BinanceService {
     });
 
     this.client.setSandboxMode(true); // Enable sandbox mode
+  }
+
+  async getMarkets(): Promise<any> {
+    return await this.exchange.loadMarkets();
   }
 
   async placeMarketBuy(symbol: string, amount: number) {

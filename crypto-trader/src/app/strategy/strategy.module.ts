@@ -10,6 +10,10 @@ import { ExchangeModule } from '../exchange/exchange.module';
 import { IndicatorUtilsModule } from '../indicator-utils/indicator-utils.module';
 import { TradesModule } from '../trades/trades.module';
 import { DcaStrategyService } from './services/dca-strategy.service';
+import { TradeDecisionService } from './services/trade-decision.service';
+import { PortfolioGuardService } from './services/portfolio-guard.service';
+import { LoggingService } from './services/logging.service';
+import { TradeExecutionService } from './services/trade-execution.service';
 
 @Module({
   imports: [
@@ -19,7 +23,13 @@ import { DcaStrategyService } from './services/dca-strategy.service';
     BalancesModule,
     IndicatorUtilsModule,
   ],
-  providers: [DcaStrategyService],
+  providers: [
+    DcaStrategyService,
+    TradeDecisionService,
+    PortfolioGuardService,
+    LoggingService,
+    TradeExecutionService,
+  ],
   exports: [DcaStrategyService],
 })
 export class StrategyModule {}
