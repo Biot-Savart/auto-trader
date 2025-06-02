@@ -14,6 +14,8 @@
             <option value="ETH">ETH</option>
             <option value="LTC">LTC</option>
             <option value="XRP">XRP</option>
+            <option value="DOGE">DOGE</option>
+            <option value="ADA">ADA</option>
           </select>
         </div>
       </div>
