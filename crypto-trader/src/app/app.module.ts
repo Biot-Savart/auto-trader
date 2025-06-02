@@ -12,6 +12,9 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ExchangeModule } from './exchange/exchange.module';
 import { StrategyModule } from './strategy/strategy.module';
+import { TradesModule } from './trades/trades.module';
+import { BalancesModule } from './balances/balances.module';
+import { IndicatorUtilsModule } from './indicator-utils/indicator-utils.module';
 
 @Module({
   imports: [
@@ -28,6 +31,9 @@ import { StrategyModule } from './strategy/strategy.module';
     StrategyModule,
     ScheduleModule.forRoot(),
     DataAccessModule,
+    TradesModule,
+    BalancesModule,
+    IndicatorUtilsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

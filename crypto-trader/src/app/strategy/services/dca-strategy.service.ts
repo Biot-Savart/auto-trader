@@ -1,24 +1,50 @@
-import { BalanceSnapshot, Trade } from '@forex-trader/shared/data-access';
+import {
+  BalanceSnapshot,
+  PortfolioSnapshot,
+  Trade,
+} from '@forex-trader/shared/data-access';
 import { InjectRepository } from '@mikro-orm/nestjs';
 import { EntityRepository } from '@mikro-orm/postgresql';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import ccxt from 'ccxt';
+import { BalancesGateway } from '../../balances/gateways/balances.gateway';
 import { BinanceService } from '../../exchange/services/binance.service';
+import { IndicatorUtilsService } from '../../indicator-utils/services/indicator-utils.service';
+import { TradeGateway } from '../../trades/gateways/trade.gateway';
 
 @Injectable()
 export class DcaStrategyService {
   private readonly logger = new Logger(DcaStrategyService.name);
 
-  private symbolsToTrade = ['BTC/USDT', 'ETH/USDT', 'LTC/USDT', 'XRP/USDT'];
+  private symbolsToTrade = [
+    'BTC/USDT',
+    'ETH/USDT',
+    'LTC/USDT',
+    'XRP/USDT',
+    'DOGE/USDT',
+    'ADA/USDT',
+  ];
   private maxTradeUSDBySymbol: Record<string, number> = {
-    'BTC/USDT': 200,
-    'ETH/USDT': 200,
-    'LTC/USDT': 200,
-    'XRP/USDT': 200,
+    'BTC/USDT': 2000,
+    'ETH/USDT': 2000,
+    'LTC/USDT': 2000,
+    'XRP/USDT': 2000,
+    'DOGE/USDT': 2000,
+    'ADA/USDT': 2000,
   };
-  private fastPeriod = 5;
-  private slowPeriod = 20;
+
+  private maxWeightPercent: Record<string, number> = {
+    BTC: 35,
+    ETH: 20,
+    LTC: 10,
+    XRP: 15,
+    DOGE: 10,
+    ADA: 10,
+  };
+
+  private fastPeriod = 10;
+  private slowPeriod = 50;
   private cooldownMs = 60 * 1000;
   private priceTrendDelta = 0.1;
 
@@ -26,7 +52,7 @@ export class DcaStrategyService {
   private lastTradeTimestamps: Record<string, number> = {};
   private previousFastMAs: Record<string, number> = {};
 
-  private assetsToLog = ['BTC', 'ETH', 'LTC', 'XRP', 'USDT'];
+  private assetsToLog = ['BTC', 'ETH', 'LTC', 'XRP', 'USDT', 'DOGE', 'ADA'];
   private readonly ccxtClient = new ccxt.binance({
     options: { defaultType: 'spot' },
   });
@@ -36,7 +62,12 @@ export class DcaStrategyService {
     @InjectRepository(Trade)
     private readonly tradeRepo: EntityRepository<Trade>,
     @InjectRepository(BalanceSnapshot)
-    private readonly snapshotRepo: EntityRepository<BalanceSnapshot>
+    private readonly snapshotRepo: EntityRepository<BalanceSnapshot>,
+    private readonly tradeGateway: TradeGateway,
+    private readonly balancesGateway: BalancesGateway,
+    @InjectRepository(PortfolioSnapshot)
+    private readonly portfolioRepo: EntityRepository<PortfolioSnapshot>,
+    private readonly indicatorUtils: IndicatorUtilsService
   ) {
     this.logger.log('DCA Strategy Service Initialized');
   }
@@ -84,11 +115,30 @@ export class DcaStrategyService {
       }
 
       const closes = (
-        await this.binanceService.getCandles(symbol, '1m', this.slowPeriod)
+        await this.binanceService.getCandles(
+          symbol,
+          '1m',
+          Math.max(this.slowPeriod, 30)
+        )
       ).map((c) => c[4]);
-      const fastMA = this.calculateSMA(closes.slice(-this.fastPeriod));
-      const slowMA = this.calculateSMA(closes);
 
+      const volatility = this.indicatorUtils.calculateMarketVolatility(closes);
+
+      this.slowPeriod = volatility > 0.0025 ? 100 : 50;
+      const level = this.indicatorUtils.categorizeVolatility(volatility); // 'LOW' | 'MEDIUM' | 'HIGH'
+
+      this.logger.log(
+        `[${symbol}] Volatility: ${volatility.toFixed(6)} (${level})`
+      );
+
+      const fastMA = this.indicatorUtils.calculateSMA(closes, this.fastPeriod);
+      const slowMA = this.indicatorUtils.calculateSMA(closes, this.slowPeriod);
+      const rsi = this.indicatorUtils.calculateRSI(closes);
+      const { macd, histogram } = this.indicatorUtils.calculateMACD(closes);
+      const { upper, middle, lower } =
+        this.indicatorUtils.calculateBollingerBands(closes);
+
+      const currentPrice = closes[closes.length - 1];
       const prevFastMA = this.previousFastMAs[symbol] ?? fastMA;
       const lastAction = this.lastActions[symbol] || null;
       const delta = this.priceTrendDelta;
@@ -96,9 +146,16 @@ export class DcaStrategyService {
 
       const shouldBuy =
         fastMA > slowMA &&
+        rsi < 70 &&
+        histogram > 0 &&
+        currentPrice < middle &&
         (lastAction !== 'BUY' || fastMA - prevFastMA > delta);
+
       const shouldSell =
         fastMA < slowMA &&
+        rsi > 30 &&
+        histogram < 0 &&
+        currentPrice > middle &&
         (lastAction !== 'SELL' || prevFastMA - fastMA > delta);
 
       const signal = shouldBuy ? 'BUY' : shouldSell ? 'SELL' : null;
@@ -106,7 +163,9 @@ export class DcaStrategyService {
       this.logger.log(
         `[${symbol}] fastMA=${fastMA.toFixed(4)} slowMA=${slowMA.toFixed(
           4
-        )} signal=${signal}`
+        )} rsi=${rsi.toFixed(2)} macd=${macd.toFixed(
+          2
+        )} BB-middle=${middle.toFixed(2)} signal=${signal}`
       );
 
       this.previousFastMAs[symbol] = fastMA;
@@ -177,25 +236,89 @@ export class DcaStrategyService {
     const price = await this.binanceService.getCurrentPrice(symbol);
     const maxUSD = this.maxTradeUSDBySymbol[symbol] ?? Infinity;
     const usdToSpend = Math.min(maxUSD, usdtFree);
+    const minimumTrade = (markets[symbol].limits.amount.min ?? 0) * price;
 
     if (usdToSpend <= 0) {
       this.logger.log(`[${symbol}] No USDT available for standalone buy`);
+
+      const neededUSDT = minimumTrade;
+      const funded = await this.sellWorstPerformingAssetToFund(
+        symbol,
+        neededUSDT,
+        balance,
+        markets
+      );
+
+      if (funded) {
+        const refreshedBalance = await this.binanceService.getBalance();
+        return this.tryStandaloneBuy(symbol, now, refreshedBalance, markets);
+      }
+
       return;
     }
 
     const market = markets[symbol];
-    let amount = usdToSpend / price;
+
+    // Re-evaluate indicators to get signal strength for confidence scaling
+    const closes = (
+      await this.binanceService.getCandles(
+        symbol,
+        '1m',
+        Math.max(this.slowPeriod, 30)
+      )
+    ).map((c) => c[4]);
+
+    const fastMA = this.indicatorUtils.calculateSMA(closes, this.fastPeriod);
+    const slowMA = this.indicatorUtils.calculateSMA(closes, this.slowPeriod);
+    const strength = Math.abs(fastMA - slowMA);
+
+    const confidenceMultiplier = Math.min(1.5, Math.max(0.5, strength * 5));
+    const adjustedUSDToSpend =
+      Math.min(maxUSD, usdtFree) * confidenceMultiplier;
+
+    let amount = adjustedUSDToSpend / price;
 
     if (amount < market.limits.amount.min) amount = market.limits.amount.min;
     if (amount * price < market.limits.cost.min)
       amount = market.limits.cost.min / price;
 
+    const allowed = await this.isWithinMaxAllocation(symbol, amount * price);
+    if (!allowed) {
+      this.logger.warn(
+        `[${symbol}] Trade blocked: would exceed portfolio allocation.`
+      );
+      return;
+    }
+
+    if (amount * price > usdtFree) {
+      this.logger.warn(
+        `[${symbol}] Not enough USDT for minimum trade. Required: ${(
+          amount * price
+        ).toFixed(2)}, Available: ${usdtFree}`
+      );
+      return;
+    }
+
+    if (amount * price < minimumTrade) {
+      this.logger.warn(
+        `[${symbol}] Minimum trade not met. Required: ${minimumTrade}, Available: ${
+          amount * price
+        }`
+      );
+      return;
+    }
+
     try {
       const order = await this.binanceService.placeMarketBuy(symbol, amount);
-      this.logger.log(`[${symbol}] Bought ${amount}`);
+      this.logger.log(
+        `[${symbol}] Bought ${amount} (Confidence x${confidenceMultiplier.toFixed(
+          2
+        )}, Strength=${strength.toFixed(2)})`
+      );
       await this.logTrade('BUY', order, symbol);
       this.lastActions[symbol] = 'BUY';
       this.lastTradeTimestamps[symbol] = now;
+      this.logBalance();
     } catch (e) {
       this.logger.error(
         `Standalone buy error for ${symbol}: ${JSON.stringify(e)}`
@@ -211,20 +334,53 @@ export class DcaStrategyService {
   ) {
     const price = await this.binanceService.getCurrentPrice(symbol);
     const market = markets[symbol];
-    let amount = Math.min(
-      usdAmount / price,
-      (this.maxTradeUSDBySymbol[symbol] ?? Infinity) / price
+
+    const balance = await this.binanceService.getBalance();
+    const usdtFree = Number(balance['USDT']?.free ?? 0);
+
+    const maxUSD = this.maxTradeUSDBySymbol[symbol] ?? Infinity;
+    const usdToSpend = Math.min(maxUSD, usdAmount, usdtFree);
+
+    if (usdToSpend <= 0) {
+      this.logger.warn(
+        `[${symbol}] Insufficient USDT balance to rebuy. Needed: ${usdAmount}, Available: ${usdtFree}`
+      );
+      return;
+    }
+
+    let rawAmount = usdToSpend / price;
+    rawAmount = Math.min(rawAmount, (maxUSD ?? Infinity) / price);
+
+    let amount = parseFloat(
+      this.ccxtClient.amountToPrecision(symbol, rawAmount)
     );
+    const minAmount = market.limits.amount.min;
+    const minCost = market.limits.cost.min;
 
-    if (amount < market.limits.amount.min) amount = market.limits.amount.min;
-    if (amount * price < market.limits.cost.min)
-      amount = market.limits.cost.min / price;
+    if (amount < minAmount) amount = minAmount;
+    if (amount * price < minCost) amount = minCost / price;
 
-    const order = await this.binanceService.placeMarketBuy(symbol, amount);
-    this.logger.log(`[${symbol}] Bought approx ${amount}`);
-    await this.logTrade('BUY', order, symbol);
-    this.lastActions[symbol] = 'BUY';
-    this.lastTradeTimestamps[symbol] = now;
+    amount = parseFloat(this.ccxtClient.amountToPrecision(symbol, amount));
+
+    if (amount * price > usdtFree) {
+      this.logger.warn(
+        `[${symbol}] Not enough USDT for minimum trade after rounding: required ${(
+          amount * price
+        ).toFixed(2)}, available ${usdtFree}`
+      );
+      return;
+    }
+
+    try {
+      const order = await this.binanceService.placeMarketBuy(symbol, amount);
+      this.logger.log(`[${symbol}] Bought approx ${amount}`);
+      await this.logTrade('BUY', order, symbol);
+      this.lastActions[symbol] = 'BUY';
+      this.lastTradeTimestamps[symbol] = now;
+      this.logBalance();
+    } catch (e) {
+      this.logger.error(`Buy error for ${symbol}: ${JSON.stringify(e)}`);
+    }
   }
 
   private selectStrongestCandidate(
@@ -245,6 +401,14 @@ export class DcaStrategyService {
     trade.price = this.ensureEightDecimals(order?.price ?? '0.00000');
     trade.amount = this.ensureEightDecimals(order?.amount ?? '0.00000');
     await this.tradeRepo.getEntityManager().fork().persistAndFlush(trade);
+
+    this.tradeGateway.emitTrade({
+      symbol,
+      side,
+      price: trade.price,
+      amount: trade.amount,
+      timestamp: new Date(),
+    });
   }
 
   private async logBalance() {
@@ -262,6 +426,8 @@ export class DcaStrategyService {
       }
     }
 
+    let totalUSDTValue = 0;
+
     for (const asset of this.assetsToLog) {
       const bal = balancesMap[asset];
       const free = bal?.free ?? '0';
@@ -273,9 +439,43 @@ export class DcaStrategyService {
       snap.total = this.ensureEightDecimals(total);
       snap.free = this.ensureEightDecimals(free);
 
+      // Get USDT equivalent value
+      let usdtValue = 0;
+      if (asset === 'USDT') {
+        usdtValue = parseFloat(total);
+      } else {
+        const price = await this.binanceService
+          .getCurrentPrice(`${asset}/USDT`)
+          .catch(() => 0);
+        usdtValue = parseFloat(total) * price;
+      }
+      totalUSDTValue += usdtValue;
+      snap.usdtValue = this.ensureEightDecimals(usdtValue);
+
       forkedEM.persist(snap);
+
+      this.balancesGateway.emitBalance({
+        asset,
+        total: snap.total,
+        free: snap.free,
+        timestamp: new Date(),
+      });
     }
 
+    const snapshot = new PortfolioSnapshot();
+    snapshot.totalValueUSDT = this.ensureEightDecimals(totalUSDTValue);
+    snapshot.timestamp = new Date();
+    await this.portfolioRepo
+      .getEntityManager()
+      .fork()
+      .persistAndFlush(snapshot);
+
+    this.balancesGateway.emitPortfolio({
+      totalValueUSDT: snapshot.totalValueUSDT,
+      timestamp: snapshot.timestamp,
+    });
+
+    this.logger.log(`Total portfolio USDT value: ${totalUSDTValue.toFixed(2)}`);
     await forkedEM.flush();
   }
 
@@ -286,5 +486,119 @@ export class DcaStrategyService {
   private ensureEightDecimals(value: string | number): string {
     const num = typeof value === 'number' ? value : parseFloat(value);
     return num.toFixed(8);
+  }
+
+  private async sellWorstPerformingAssetToFund(
+    symbol: string,
+    neededUSDT: number,
+    balance: any,
+    markets: any
+  ): Promise<boolean> {
+    const assets = Object.keys(balance).filter(
+      (a) => a !== 'USDT' && parseFloat(balance[a]?.free ?? '0') > 0
+    );
+
+    type AssetPerformance = {
+      asset: string;
+      value: number;
+      amount: number;
+      symbol: string;
+      entryPrice: number;
+      currentPrice: number;
+      pnlPercent: number;
+    };
+    const assetPerformances: AssetPerformance[] = [];
+
+    for (const asset of assets) {
+      try {
+        const symbol = `${asset}/USDT`;
+        const currentPrice = await this.binanceService.getCurrentPrice(symbol);
+        const amount = parseFloat(balance[asset]?.free ?? '0');
+        const value = currentPrice * amount;
+
+        const lastBuy = await this.tradeRepo.findOne(
+          { symbol, side: 'BUY' },
+          { orderBy: { timestamp: 'DESC' } }
+        );
+        const entryPrice = Number(lastBuy?.price ?? currentPrice);
+
+        const pnlPercent = ((currentPrice - entryPrice) / entryPrice) * 100;
+        assetPerformances.push({
+          asset,
+          value,
+          amount,
+          symbol,
+          entryPrice,
+          currentPrice,
+          pnlPercent,
+        });
+      } catch (e) {
+        this.logger.warn(
+          `Price or PnL calc failed for ${asset}/USDT: ${e.message}`
+        );
+      }
+    }
+
+    assetPerformances.sort((a, b) => a.pnlPercent - b.pnlPercent); // worst performing first
+
+    for (const asset of assetPerformances) {
+      if (asset.value < neededUSDT * 0.5) continue;
+
+      try {
+        const sellAmount = Math.min(
+          asset.amount,
+          neededUSDT / asset.currentPrice
+        );
+        const order = await this.binanceService.placeMarketSell(
+          asset.symbol,
+          sellAmount
+        );
+        this.logger.log(
+          `Sold ${sellAmount} of ${
+            asset.asset
+          } (PnL: ${asset.pnlPercent.toFixed(2)}%) to fund ${symbol}`
+        );
+        await this.logTrade('SELL', order, asset.symbol);
+        return true;
+      } catch (e) {
+        this.logger.error(
+          `Failed to sell ${asset.asset}: ${JSON.stringify(e)}`
+        );
+      }
+    }
+
+    this.logger.warn(`Could not sell any assets to fund ${symbol} purchase.`);
+    return false;
+  }
+
+  private async isWithinMaxAllocation(
+    symbol: string,
+    usdToSpend: number
+  ): Promise<boolean> {
+    const asset = symbol.split('/')[0];
+    const snapshot = await this.portfolioRepo.findOne(
+      {},
+      { orderBy: { timestamp: 'DESC' } }
+    );
+    if (!snapshot) return true;
+
+    const totalValue = parseFloat(snapshot.totalValueUSDT);
+    const lastBalances = await this.snapshotRepo.find(
+      { asset },
+      { orderBy: { timestamp: 'DESC' }, limit: 1 }
+    );
+    const assetBalance = parseFloat(lastBalances[0]?.usdtValue ?? '0');
+
+    const currentWeight = (assetBalance / totalValue) * 100;
+    const projectedWeight = ((assetBalance + usdToSpend) / totalValue) * 100;
+
+    const maxAllowed = this.maxWeightPercent[asset] ?? 100;
+    this.logger.log(
+      `[${asset}] Current: ${currentWeight.toFixed(
+        2
+      )}%, Projected: ${projectedWeight.toFixed(2)}%, Max: ${maxAllowed}%`
+    );
+
+    return projectedWeight <= maxAllowed;
   }
 }

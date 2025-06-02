@@ -42,3 +42,12 @@ Thumbs.db
 .nx/workspace-data
 
 .env
+
+# Nuxt dev/build outputs
+.output
+.data
+.nuxt
+.nitro
+.cache
+.cursor\rules\nx-rules.mdc
+.github\instructions\nx.instructions.md

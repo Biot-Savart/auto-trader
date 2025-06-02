@@ -3,7 +3,7 @@
   "compilerOptions": {
     "rootDir": ".",
     "sourceMap": true,
-    "declaration": false,
+    "declaration": true,
     "moduleResolution": "node",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
@@ -16,7 +16,9 @@
     "baseUrl": ".",
     "paths": {
       "@forex-trader/shared/data-access": ["shared/data-access/src/index.ts"]
-    }
+    },
+    "emitDeclarationOnly": true,
+    "declarationMap": true
   },
   "exclude": ["node_modules", "tmp"]
 }

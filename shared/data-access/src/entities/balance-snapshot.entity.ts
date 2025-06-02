@@ -17,4 +17,7 @@ export class BalanceSnapshot {
 
   @Property()
   timestamp: Date = new Date();
+
+  @Property({ type: 'decimal', precision: 17, scale: 8, default: 0 })
+  usdtValue!: string;
 }
