@@ -100,6 +100,45 @@ export class TradeExecutionService {
     }
   }
 
+  async tryStandaloneSell(
+    symbol: string,
+    balance: any,
+    markets: any,
+    maxTradeUSDBySymbol: Record<string, number>,
+    assetsToLog: string[]
+  ) {
+    const asset = symbol.split('/')[0];
+    const freeBalance = parseFloat(balance[asset]?.free ?? '0');
+    const price = await this.binanceService.getCurrentPrice(symbol);
+    const maxUSD = maxTradeUSDBySymbol[symbol] ?? Infinity;
+    const market = markets[symbol];
+
+    if (freeBalance <= 0) {
+      this.logger.warn(`[${symbol}] No balance to sell.`);
+      return;
+    }
+
+    let sellAmount = Math.min(freeBalance, maxUSD / price);
+    if (sellAmount < market.limits.amount.min)
+      sellAmount = market.limits.amount.min;
+    if (sellAmount * price < market.limits.cost.min)
+      sellAmount = market.limits.cost.min / price;
+
+    try {
+      const order = await this.binanceService.placeMarketSell(
+        symbol,
+        sellAmount
+      );
+      this.logger.log(`[${symbol}] Sold ${sellAmount} as standalone SELL`);
+      await this.loggingService.logTrade('SELL', order, symbol);
+      await this.loggingService.logBalance(assetsToLog);
+    } catch (e) {
+      this.logger.error(
+        `Standalone sell error for ${symbol}: ${JSON.stringify(e)}`
+      );
+    }
+  }
+
   // This file builds on Dca-trade-execution.service.ts
 
   async performRebalance(
@@ -273,5 +312,109 @@ export class TradeExecutionService {
 
     this.logger.warn(`Could not sell any assets to fund ${symbol} purchase.`);
     return false;
+  }
+
+  async executeFallbackSell(
+    sellCandidates: [string, { signal: 'BUY' | 'SELL'; strength: number }][],
+    balance: any,
+    markets: any,
+    maxTradeUSDBySymbol: Record<string, number>,
+    assetsToLog: string[]
+  ) {
+    if (!sellCandidates.length) return;
+
+    const [symbol] =
+      this.tradeDecisionService.selectStrongestCandidate(sellCandidates);
+    await this.tryStandaloneSell(
+      symbol,
+      balance,
+      markets,
+      maxTradeUSDBySymbol,
+      assetsToLog
+    );
+  }
+
+  async executeSmartTradeFallback(
+    buyCandidates: [string, { signal: 'BUY' | 'SELL'; strength: number }][],
+    sellCandidates: [string, { signal: 'BUY' | 'SELL'; strength: number }][],
+    now: number,
+    balance: any,
+    markets: any,
+    fastPeriod: number,
+    slowPeriod: number,
+    maxTradeUSDBySymbol: Record<string, number>,
+    assetsToLog: string[]
+  ) {
+    if (buyCandidates.length) {
+      for (const [symbol] of buyCandidates) {
+        await this.tryStandaloneBuy(
+          symbol,
+          now,
+          balance,
+          markets,
+          fastPeriod,
+          slowPeriod,
+          maxTradeUSDBySymbol,
+          assetsToLog
+        );
+      }
+    } else if (sellCandidates.length) {
+      await this.executeFallbackSell(
+        sellCandidates,
+        balance,
+        markets,
+        maxTradeUSDBySymbol,
+        assetsToLog
+      );
+    } else {
+      this.logger.log('No actionable signals this cycle.');
+    }
+  }
+
+  async executeSmartTrade(
+    symbolSignals: Record<
+      string,
+      { signal: 'BUY' | 'SELL' | null; strength: number }
+    >,
+    now: number,
+    balance: any,
+    markets: any,
+    fastPeriod: number,
+    slowPeriod: number,
+    maxTradeUSDBySymbol: Record<string, number>,
+    assetsToLog: string[]
+  ) {
+    const buyCandidates = this.tradeDecisionService.getCandidates(
+      symbolSignals,
+      'BUY'
+    );
+    const sellCandidates = this.tradeDecisionService.getCandidates(
+      symbolSignals,
+      'SELL'
+    );
+
+    if (buyCandidates.length && sellCandidates.length) {
+      await this.performRebalance(
+        buyCandidates,
+        sellCandidates,
+        now,
+        balance,
+        markets,
+        maxTradeUSDBySymbol,
+        assetsToLog
+      );
+    } else {
+      await this.executeSmartTradeFallback(
+        buyCandidates,
+        sellCandidates,
+        now,
+        balance,
+        markets,
+        fastPeriod,
+        slowPeriod,
+        maxTradeUSDBySymbol,
+        assetsToLog
+      );
+    }
   }
 }

@@ -4,21 +4,11 @@
   <main>
     <header>
       <nav>
-        <NuxtLink to="/">
-          Home
-        </NuxtLink>
-        <NuxtLink to="/about">
-          About
-        </NuxtLink>
-        <NuxtLink to="/balances">
-          Balances
-        </NuxtLink>
-        <NuxtLink to="/trades">
-          Trades
-        </NuxtLink>
-        <NuxtLink to="/portfolio">
-          Portfolio
-        </NuxtLink>
+        <NuxtLink to="/"> Home </NuxtLink>
+        <NuxtLink to="/about"> About </NuxtLink>
+        <NuxtLink to="/balances"> Balances </NuxtLink>
+        <NuxtLink to="/trades"> Trades </NuxtLink>
+        <NuxtLink to="/portfolio"> Portfolio </NuxtLink>
       </nav>
     </header>
     <nuxt-page />
@@ -59,4 +49,3 @@ nav > a {
 <style>
 @import 'bulma/css/bulma.css';
 </style>
-

@@ -24,28 +24,55 @@ export class IndicatorUtilsService {
     return 100 - 100 / (1 + rs);
   }
 
+  calculateEMA(values: number[], period: number): number[] {
+    const k = 2 / (period + 1);
+    const ema: number[] = [];
+
+    // Start with simple moving average
+    let sum = 0;
+    for (let i = 0; i < period; i++) {
+      sum += values[i];
+    }
+    ema[period - 1] = sum / period;
+
+    // Continue with EMA
+    for (let i = period; i < values.length; i++) {
+      ema[i] = values[i] * k + ema[i - 1] * (1 - k);
+    }
+
+    return ema;
+  }
+
   calculateMACD(
-    data: number[],
+    closes: number[],
     fastPeriod = 12,
     slowPeriod = 26,
     signalPeriod = 9
-  ): { macd: number; signal: number; histogram: number } {
-    if (data.length < slowPeriod + signalPeriod)
-      return { macd: 0, signal: 0, histogram: 0 };
+  ): { macd: number; signalLine: number; histogram: number } {
+    const emaFast = this.calculateEMA(closes, fastPeriod);
+    const emaSlow = this.calculateEMA(closes, slowPeriod);
+    const macdLine: number[] = [];
 
-    const ema = (arr: number[], p: number) => {
-      const k = 2 / (p + 1);
-      let ema = arr.slice(0, p).reduce((a, b) => a + b) / p;
-      for (let i = p; i < arr.length; i++) {
-        ema = arr[i] * k + ema * (1 - k);
+    for (let i = 0; i < closes.length; i++) {
+      if (emaFast[i] !== undefined && emaSlow[i] !== undefined) {
+        macdLine[i] = emaFast[i] - emaSlow[i];
+      } else {
+        macdLine[i] = 0;
       }
-      return ema;
-    };
+    }
 
-    const macd = ema(data, fastPeriod) - ema(data, slowPeriod);
-    const signal = ema(data.slice(-signalPeriod - 1), signalPeriod);
-    const histogram = macd - signal;
-    return { macd, signal, histogram };
+    const signalLineArr = this.calculateEMA(macdLine, signalPeriod);
+    const lastIndex = signalLineArr.length - 1;
+
+    const macd = macdLine[lastIndex];
+    const signalLine = signalLineArr[lastIndex];
+    const histogram = macd - signalLine;
+
+    return {
+      macd,
+      signalLine,
+      histogram,
+    };
   }
 
   calculateBollingerBands(

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as ccxt from 'ccxt';
 
 @Injectable()
@@ -7,6 +7,7 @@ export class BinanceService {
   private readonly exchange = new ccxt.binance({
     options: { defaultType: 'spot' },
   });
+  private readonly logger = new Logger(BinanceService.name);
 
   constructor() {
     this.client = new ccxt.binance({
@@ -26,12 +27,16 @@ export class BinanceService {
   }
 
   async placeMarketBuy(symbol: string, amount: number) {
-    console.log('Placing market buy order:', symbol, amount);
+    this.logger.warn(
+      `Placing market buy order: ${symbol} for amount: ${amount}`
+    );
     return await this.client.createMarketBuyOrder(symbol, amount);
   }
 
   async placeMarketSell(symbol: string, amount: number) {
-    console.log('Placing market sell order:', symbol, amount);
+    this.logger.warn(
+      `Placing market sell order: ${symbol} for amount: ${amount}`
+    );
     return await this.client.createMarketSellOrder(symbol, amount);
   }
 

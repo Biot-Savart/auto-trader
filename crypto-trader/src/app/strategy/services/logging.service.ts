@@ -5,13 +5,14 @@ import {
 } from '@forex-trader/shared/data-access';
 import { InjectRepository } from '@mikro-orm/nestjs';
 import { EntityRepository } from '@mikro-orm/postgresql';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { BalancesGateway } from '../../balances/gateways/balances.gateway';
 import { BinanceService } from '../../exchange/services/binance.service';
 import { TradeGateway } from '../../trades/gateways/trade.gateway';
 
 @Injectable()
 export class LoggingService {
+  private readonly logger = new Logger(LoggingService.name);
   constructor(
     private readonly tradeGateway: TradeGateway,
     private readonly balancesGateway: BalancesGateway,
@@ -25,12 +26,14 @@ export class LoggingService {
   ) {}
 
   async logTrade(side: 'BUY' | 'SELL', order: any, symbol: string) {
+    const em = this.tradeRepo.getEntityManager().fork();
     const trade = new Trade();
     trade.symbol = symbol;
     trade.side = side;
     trade.price = this.ensureEightDecimals(order?.price ?? '0.00000');
     trade.amount = this.ensureEightDecimals(order?.amount ?? '0.00000');
-    await this.tradeRepo.getEntityManager().fork().persistAndFlush(trade);
+
+    await em.persistAndFlush(trade);
 
     this.tradeGateway.emitTrade({
       symbol,
@@ -43,7 +46,7 @@ export class LoggingService {
 
   async logBalance(assetsToLog: string[]) {
     const balance = await this.binanceService.getBalance();
-    const forkedEM = this.snapshotRepo.getEntityManager().fork();
+    const em = this.snapshotRepo.getEntityManager().fork();
     const balancesMap: Record<string, { free: string; locked: string }> = {};
 
     if (balance.info?.balances) {
@@ -74,14 +77,22 @@ export class LoggingService {
       } else {
         const price = await this.binanceService
           .getCurrentPrice(`${asset}/USDT`)
-          .catch(() => 0);
+          .catch((err) => {
+            this.logger.warn(
+              `Failed to get price for ${asset}/USDT: ${err.message}`
+            );
+            return 0;
+          });
         usdtValue = parseFloat(total) * price;
+        this.logger.log(
+          `${asset}: amount=${total}, price=${price}, valueUSDT=${usdtValue}`
+        );
       }
 
       totalUSDTValue += usdtValue;
       snap.usdtValue = this.ensureEightDecimals(usdtValue);
 
-      forkedEM.persist(snap);
+      em.persist(snap);
 
       this.balancesGateway.emitBalance({
         asset,
@@ -89,11 +100,17 @@ export class LoggingService {
         free: snap.free,
         timestamp: new Date(),
       });
+
+      this.logger.log(
+        `Emitted balance for ${asset}: total=${snap.total}, free=${snap.free}`
+      );
     }
 
     const snapshot = new PortfolioSnapshot();
     snapshot.totalValueUSDT = this.ensureEightDecimals(totalUSDTValue);
     snapshot.timestamp = new Date();
+
+    //em.persist(snapshot);
     await this.portfolioRepo
       .getEntityManager()
       .fork()
@@ -104,7 +121,8 @@ export class LoggingService {
       timestamp: snapshot.timestamp,
     });
 
-    await forkedEM.flush();
+    await em.flush();
+    this.logger.log('Balance snapshots flushed to DB.');
   }
 
   private ensureEightDecimals(value: string | number): string {

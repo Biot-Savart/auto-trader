@@ -56,7 +56,11 @@ export class TradeDecisionService {
         dynamicSlowPeriod
       );
       const rsi = this.indicatorUtils.calculateRSI(closes);
-      const { macd, histogram } = this.indicatorUtils.calculateMACD(closes);
+      const { macd, signalLine, histogram } = this.indicatorUtils.calculateMACD(
+        closes,
+        fastPeriod,
+        slowPeriod
+      );
       const { middle } = this.indicatorUtils.calculateBollingerBands(closes);
 
       const currentPrice = closes[closes.length - 1];
@@ -67,10 +71,24 @@ export class TradeDecisionService {
 
       const shouldBuy =
         fastMA > slowMA &&
-        rsi < 70 &&
-        histogram > 0 &&
-        currentPrice < middle &&
+        rsi < 80 &&
+        macd > signalLine &&
+        currentPrice < middle * 1.05 &&
         (lastAction !== 'BUY' || fastMA - prevFastMA > delta);
+
+      // if (!shouldBuy) {
+      //   this.logger.debug(`[${symbol}] Eval Buy Conditions:
+      //     fastMA > slowMA: ${fastMA > slowMA}
+      //     rsi < 70: ${rsi < 70}
+      //     macd > signalLine: ${macd > signalLine}
+      //     price < BB.middle: ${currentPrice < middle}
+      //     trend delta ok: ${(fastMA - prevFastMA).toFixed(4)} > ${delta} = ${
+      //     lastAction !== 'BUY' || fastMA - prevFastMA > delta
+      //   }
+      //   `);
+      // } else {
+      //   this.logger.debug(`[${symbol}] Buy conditions met.`);
+      // }
 
       const shouldSell =
         fastMA < slowMA &&
