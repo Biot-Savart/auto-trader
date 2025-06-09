@@ -5,7 +5,11 @@
   "scripts": {
     "mikro-orm:migration:create": "npx mikro-orm migration:create --config shared/data-access/src/mikro-orm.cli.config.ts",
     "mikro-orm:migration:up": "npx mikro-orm migration:up --config shared/data-access/src/mikro-orm.cli.config.ts",
-    "mikro-orm:migration:down": "npx mikro-orm migration:down --config shared/data-access/src/mikro-orm.cli.config.ts"
+    "mikro-orm:migration:down": "npx mikro-orm migration:down --config shared/data-access/src/mikro-orm.cli.config.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "private": true,
   "dependencies": {

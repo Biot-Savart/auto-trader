@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { BinanceService } from '../../exchange/services/binance.service';
+import { LoggingService } from './logging.service';
 import { TradeDecisionService } from './trade-decision.service';
 import { TradeExecutionService } from './trade-execution.service';
 
@@ -16,27 +17,27 @@ export class DcaStrategyService {
   ];
 
   private maxTradeUSDBySymbol: Record<string, number> = {
-    'BTC/USDT': 2000,
+    'BTC/USDT': 2500,
     'ETH/USDT': 2000,
-    'LTC/USDT': 2000,
-    'XRP/USDT': 2000,
-    'DOGE/USDT': 2000,
-    'ADA/USDT': 2000,
+    'LTC/USDT': 1000,
+    'XRP/USDT': 1500,
+    'DOGE/USDT': 750,
+    'ADA/USDT': 1000,
   };
 
   private maxWeightPercent: Record<string, number> = {
-    BTC: 35,
-    ETH: 20,
+    BTC: 30,
+    ETH: 25,
     LTC: 10,
-    XRP: 15,
+    XRP: 20,
     DOGE: 10,
-    ADA: 10,
+    ADA: 5,
   };
 
   private fastPeriod = 10;
   private slowPeriod = 50;
   private cooldownMs = 60 * 1000;
-  private priceTrendDelta = 0.1;
+  private priceTrendDelta = 0.5;
 
   private lastActions: Record<string, 'BUY' | 'SELL' | null> = {};
   private lastTradeTimestamps: Record<string, number> = {};
@@ -47,7 +48,8 @@ export class DcaStrategyService {
   constructor(
     private readonly tradeDecisionService: TradeDecisionService,
     private readonly tradeExecutionService: TradeExecutionService,
-    private readonly binanceService: BinanceService
+    private readonly binanceService: BinanceService,
+    private readonly loggingService: LoggingService
   ) {}
 
   @Cron('0 * * * * *')
@@ -70,38 +72,20 @@ export class DcaStrategyService {
       now
     );
 
-    const buyCandidates = this.tradeDecisionService.getCandidates(
+    await this.tradeExecutionService.executeSmartTrade(
       symbolSignals,
-      'BUY'
+      now,
+      balance,
+      markets,
+      this.fastPeriod,
+      this.slowPeriod,
+      this.maxTradeUSDBySymbol,
+      this.assetsToLog
     );
-    const sellCandidates = this.tradeDecisionService.getCandidates(
-      symbolSignals,
-      'SELL'
-    );
+  }
 
-    if (buyCandidates.length && sellCandidates.length) {
-      await this.tradeExecutionService.performRebalance(
-        buyCandidates,
-        sellCandidates,
-        now,
-        balance,
-        markets,
-        this.maxTradeUSDBySymbol,
-        this.assetsToLog
-      );
-    } else {
-      for (const [symbol] of buyCandidates) {
-        await this.tradeExecutionService.tryStandaloneBuy(
-          symbol,
-          now,
-          balance,
-          markets,
-          this.fastPeriod,
-          this.slowPeriod,
-          this.maxTradeUSDBySymbol,
-          this.assetsToLog
-        );
-      }
-    }
+  @Cron('0 */5 * * * *')
+  async logBalanceCron() {
+    await this.loggingService.logBalance(this.assetsToLog);
   }
 }

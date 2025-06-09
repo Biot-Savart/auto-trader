@@ -20,8 +20,6 @@ export class PortfolioGuardService {
   };
 
   constructor(
-    @InjectRepository(BalanceSnapshot)
-    private readonly snapshotRepo: EntityRepository<BalanceSnapshot>,
     @InjectRepository(PortfolioSnapshot)
     private readonly portfolioRepo: EntityRepository<PortfolioSnapshot>
   ) {}
@@ -30,15 +28,19 @@ export class PortfolioGuardService {
     symbol: string,
     usdToSpend: number
   ): Promise<boolean> {
+    const em = this.portfolioRepo.getEntityManager().fork();
+    // Use repositories from the forked EM
+    const portfolioRepo = em.getRepository(PortfolioSnapshot);
+    const snapshotRepo = em.getRepository(BalanceSnapshot);
     const asset = symbol.split('/')[0];
-    const snapshot = await this.portfolioRepo.findOne(
+    const snapshot = await portfolioRepo.find(
       {},
-      { orderBy: { timestamp: 'DESC' } }
+      { orderBy: { timestamp: 'DESC' }, limit: 1 }
     );
     if (!snapshot) return true;
 
-    const totalValue = parseFloat(snapshot.totalValueUSDT);
-    const lastBalances = await this.snapshotRepo.find(
+    const totalValue = parseFloat(snapshot[0].totalValueUSDT);
+    const lastBalances = await snapshotRepo.find(
       { asset },
       { orderBy: { timestamp: 'DESC' }, limit: 1 }
     );
